@@ -55,7 +55,7 @@ all: default
 
 
 run: $(BIN) 
-
+	@$^
 clean:
 	rm -rf $(BUILD_DIR)
 	$(RM) ./obj_dir/*
