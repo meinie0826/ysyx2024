@@ -12,7 +12,7 @@
 TOPNAME = two_ctrl_switch
 NXDC_FILES = constr/$(TOPNAME).nxdc
 INC_PATH ?=
-
+NVBOARD_HOME = /home/meinie/Desktop/ysyx2024/nvboard
 VERILATOR = verilator
 VERILATOR_CFLAGS += -MMD --build -cc --trace \
 				-O3 --x-assign fast --x-initial fast --noassert
@@ -42,7 +42,7 @@ include $(NVBOARD_HOME)/scripts/nvboard.mk
 # rules for verilator
 INCFLAGS = $(addprefix -I, $(INC_PATH))
 CXXFLAGS += $(INCFLAGS) -DTOP_NAME="\"V$(TOPNAME)\""
-
+#LDFLAGS += -lSDL2 -lSDL2_image
 
 $(BIN): $(VSRCS) $(CSRCS) $(NVBOARD_ARCHIVE)
 	@rm -rf $(OBJ_DIR)
@@ -58,8 +58,8 @@ run: $(BIN)
 	@$^
 clean:
 	rm -rf $(BUILD_DIR)
-	$(RM) ./obj_dir/*
-.PHONY: default all clean run
+# $(RM) ./obj_dir/*
+
 
 test: 
 	@echo $(BIN)
