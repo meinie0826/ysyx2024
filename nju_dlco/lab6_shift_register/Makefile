@@ -9,7 +9,7 @@
 #	verilator -Wall --cc --exe --build ./csrc/$(TCS).cpp ./vsrc/$(TCS).v --trace
 
 
-TOPNAME = alu
+TOPNAME = shift_register
 NXDC_FILES = constr/$(TOPNAME).nxdc
 INC_PATH ?=
 
