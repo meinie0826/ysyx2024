@@ -2,7 +2,7 @@ module bcd7seg(
   input  [3:0] b,
   output reg [6:0] h
 );
-// detailed implementation ...
+
     always @(b) begin
         case (b)
                 4'b1001 : h = 7'b1111001;
