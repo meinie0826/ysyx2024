@@ -13,12 +13,15 @@ VSRCS += design/reg_file.v
 
 run:
 	verilator  --cc --exe --build --trace --timing -j cpu.cpp cpu.v $(VSRCS)
-	./obj_dir/Vcpu $(ARGS)
+	./obj_dir/Vcpu $(ARGS) /home/meinie/Desktop/ics2023/nemu/build/riscv32-nemu-interpreter-so
 
 test:
 	verilator  --cc --exe --build --trace --timing -j cpu.cpp cpu.v $(VSRCS)
 	./obj_dir/Vcpu /home/meinie/Desktop/ysyx2024/npc/dummy-riscv32e-npc.bin
 
+difftest:
+	verilator  --cc --exe --build --trace --timing -j cpu.cpp cpu.v $(VSRCS)
+	./obj_dir/Vcpu /home/meinie/Desktop/ics2023/nemu/build/riscv32-nemu-interpreter-so
 
 clean:
 	rm -rf ./obj_dir
