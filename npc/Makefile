@@ -1,27 +1,25 @@
-VSRCS = design/alu.v
-VSRCS += design/controller.v
-VSRCS += design/data_mem.v
-VSRCS += design/id.v
-VSRCS += design/imm.v
-#VSRCS += design/instruction_mem.v
-VSRCS += design/mux_2.v
-VSRCS += design/mux_2_5.v
-VSRCS += design/mux_3.v
-VSRCS += design/next_pc.v
-VSRCS += design/pc.v
-VSRCS += design/reg_file.v
+RESULT = .result
+$(shell > $(RESULT))
 
-run:
-	verilator  --cc --exe --build --trace --timing -j cpu.cpp cpu.v $(VSRCS)
-	./obj_dir/Vcpu $(ARGS) /home/meinie/Desktop/ics2023/nemu/build/riscv32-nemu-interpreter-so
+Makefile.%: /home/meinie/Desktop/ics2023/am-kernels/tests/cpu-tests/tests/%.c
+	@/bin/echo -e "APP = $(notdir $*)\ninclude /home/meinie/Desktop/ysyx2024/npc/builddir.mk " > $@
+	@if make -s -f $@ run; then \
+		printf "[%14s] $(COLOR_GREEN)PASS$(COLOR_NONE)\n" $* >> $(RESULT); \
+	else \
+		printf "[%14s] $(COLOR_RED)***FAIL***$(COLOR_NONE)\n" $* >> $(RESULT); \
+	fi
+	-@rm -f Makefile.$*
 
-test:
-	verilator  --cc --exe --build --trace --timing -j cpu.cpp cpu.v $(VSRCS)
-	./obj_dir/Vcpu /home/meinie/Desktop/ysyx2024/npc/dummy-riscv32e-npc.bin
+ALL = $(basename $(notdir $(shell find /home/meinie/Desktop/ics2023/am-kernels/tests/cpu-tests/tests/. -name "*.c")))
 
-difftest:
-	verilator  --cc --exe --build --trace --timing -j cpu.cpp cpu.v $(VSRCS)
-	./obj_dir/Vcpu /home/meinie/Desktop/ics2023/nemu/build/riscv32-nemu-interpreter-so
+all:$(addprefix Makefile., $(ALL))
 
-clean:
-	rm -rf ./obj_dir
+gen: all
+	@cat $(RESULT)
+	@rm $(RESULT)
+
+name: 
+	@echo "$(all)"
+	
+
+-include /home/meinie/Desktop/ysyx2024/npc/builddir.mk 

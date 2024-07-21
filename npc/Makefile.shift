@@ -1,0 +1,2 @@
+APP = shift
+include /home/meinie/Desktop/ysyx2024/npc/builddir.mk 

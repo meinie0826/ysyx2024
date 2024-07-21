@@ -1,0 +1,2 @@
+APP = crc32
+include /home/meinie/Desktop/ysyx2024/npc/builddir.mk 

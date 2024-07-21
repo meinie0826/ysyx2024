@@ -1,0 +1,30 @@
+VSRCS = design/alu.v
+VSRCS += design/branch.v
+VSRCS += design/dcache.v
+VSRCS += design/dcache_ctrl.v
+VSRCS += design/imm.v
+#VSRCS += design/instruction_mem.v
+VSRCS += design/mux_2.v
+VSRCS += design/id.v
+VSRCS += design/mux_1.v
+VSRCS += design/icache.v
+VSRCS += design/pc.v
+VSRCS += design/reg_file.v
+VSRCS += design/npc_sel.v
+
+
+run:
+	verilator  --cc --exe --build --trace --timing -j cpu.cpp cpu.v $(VSRCS)
+	./obj_dir/Vcpu $(ARGS) /home/meinie/Desktop/ics2023/nemu/build/riscv32-nemu-interpreter-so
+
+test:
+	verilator  --cc --exe --build --trace --timing -j cpu.cpp cpu.v $(VSRCS)
+	./obj_dir/Vcpu /home/meinie/Desktop/ysyx2024/npc/dummy-riscv32e-npc.bin
+
+difftest:
+	verilator  --cc --exe --build --trace --timing -j cpu.cpp cpu.v $(VSRCS)
+	./obj_dir/Vcpu /home/meinie/Desktop/ics2023/nemu/build/riscv32-nemu-interpreter-so
+
+clean:
+	rm -rf ./obj_dir
+	rm -rf build
