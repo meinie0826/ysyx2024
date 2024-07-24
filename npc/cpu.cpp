@@ -10,12 +10,37 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 
-#define OFFSETADDR 0x80000000
-#define CONFIG_MBASE 0x80000000
+/*------------------------------------------macro------------------------------------------------*/
+
+#define CONFIG_MBASE 0x80000000  
 #define CONFIG_MSIZE 0x8000000
+#define CONFIG_SERIAL_MMIO 0xa00003f8
+
+#define PAGE_SHIFT        12
+#define PAGE_SIZE         (1ul << PAGE_SHIFT)
+#define PAGE_MASK         (PAGE_SIZE - 1)
+#define IO_SPACE_MAX      (2 * 1024 * 1024)
+
+#define CONFIG_RTC_MMIO 0xa0000040
+
 #define INTER_IMG_SIZE 4
+
 typedef uint32_t paddr_t;
 
+void printf_green(const char *s)
+{
+  printf("\033[0m\033[1;32m%s\033[0m", s);
+}
+
+void printf_red(const char *s)
+{
+  printf("\033[0m\033[1;31m%s\033[0m", s);
+}
+
+
+uint32_t mmio_read(uint32_t addr, uint32_t mask);
+uint32_t mmio_write(uint32_t addr, uint32_t mask,uint32_t data);
+static uint64_t boot_time = 0;
 /*----------------------------------------SIM--------------------------------------------------*/
 VerilatedContext *ct = NULL;
 VerilatedVcdC *ftrace = new VerilatedVcdC;
@@ -62,35 +87,6 @@ void cpu_init()
   reset(1);
 }
 
-// dpi c
-extern "C" void npc_pmem_read(bool re, uint32_t raddr, uint32_t mask, uint32_t *rword);
-extern "C" void npc_pmem_write(bool we, uint32_t waddr, uint32_t mask, uint32_t wword);
-
-bool ebreak;
-enum
-{
-  DIFFTEST_TO_cpu,
-  DIFFTEST_TO_REF
-};
-
-uint8_t img[CONFIG_MSIZE] = {0};
-uint8_t inter_img[] = {
-    0x00, 0x10, 0x81, 0x13, // addi 1 1 2
-    0x00, 0x10, 0x00, 0x73, // addi 1 2 3
-    0x00, 0x11, 0x82, 0x13, // addi 1 3 4
-    0x00, 0x12, 0x02, 0x93, // addi 1 4 5
-};
-
-void printf_green(const char *s)
-{
-  printf("\033[0m\033[1;32m%s\033[0m", s);
-}
-
-void printf_red(const char *s)
-{
-  printf("\033[0m\033[1;31m%s\033[0m", s);
-}
-
 enum
 {
   NPC_RUNNING,
@@ -108,7 +104,7 @@ typedef struct
 } NPCState;
 NPCState npc_state;
 
-
+/*----------------------------------------------memory----------------------------------------------*/
 // uint32_t img [] = {
 //   0x00108113,  // addi 1 1 2
 //   0x00100073,  // addi 1 2 3
@@ -118,6 +114,19 @@ NPCState npc_state;
 // addi : imm(12)  rs1(5)  func3(000)  rd(5) opcode(0010011)
 // 000000000001 00100 000 00101 0010011
 // 100010000 00110 0010011
+
+// dpi c
+extern "C" void npc_pmem_read(bool re, uint32_t raddr, uint32_t mask, uint32_t *rword);
+extern "C" void npc_pmem_write(bool we, uint32_t waddr, uint32_t mask, uint32_t wword);
+
+uint8_t img[CONFIG_MSIZE] = {0};
+uint8_t inter_img[] = {
+    0x00, 0x10, 0x81, 0x13, // addi 1 1 2
+    0x00, 0x10, 0x00, 0x73, // addi 1 2 3
+    0x00, 0x11, 0x82, 0x13, // addi 1 3 4
+    0x00, 0x12, 0x02, 0x93, // addi 1 4 5
+};
+
 
 long img_init(int argc, char *filename)
 {
@@ -180,24 +189,41 @@ void host_write(void *addr, int len, uint32_t data) {
 
 extern "C" void npc_pmem_read(bool re, uint32_t raddr, uint32_t mask, uint32_t *rword)
 {
-  printf("[npc_pmem_read] re : %d, raddr : %08x, mask : %08x\n",re,raddr,mask);
-  if (!re)
+  
+  if (!re) return;
+  
+  if(raddr >= CONFIG_MBASE && raddr < CONFIG_MBASE + CONFIG_MSIZE) {
+    //printf("[npc_pmem_read] re : %d, raddr : %08x, mask : %08x\n",re,raddr,mask);
+    *rword = host_read(guest_to_host(raddr), 1 << mask);
     return;
-  *rword = host_read(guest_to_host(raddr), 1 << mask);
-  //printf("read mem addr : %08x, len : %d, data : %08x \n", raddr, mask, *rword);
-  return;
+  }
+  //*rword = mmio_read(raddr,mask);
 }
 
 // write physical memory with write enable we, write addr waddr, write size (1 << mask), write data wword
 extern "C" void npc_pmem_write(bool we, uint32_t waddr, uint32_t mask, uint32_t wword)
 {
-  if (!we)
+  
+  if (!we) return;
+  printf("[npc_pmem_write] re : %d, raddr : %08x, mask : %08x， data : %08x\n",we,waddr,mask,wword);
+  if(waddr >= CONFIG_MBASE && waddr < CONFIG_MBASE + CONFIG_MSIZE) {
+   
+    host_write(guest_to_host(waddr), 1 << mask, wword);
     return;
-  host_write(guest_to_host(waddr), 1 << mask, wword);
-  //printf("write mem addr : %08x, len : %d, data : %08x \n", waddr, mask, wword);
-  return;
+  }
+
+  printf("waddr : %x, mask : %x,wword : %x\n",waddr,mask,wword);
+  mmio_write(waddr,mask,wword);
 }
 /*----------------------------------------difftest-------------------------------------------------*/
+
+bool ebreak;
+enum
+{
+  DIFFTEST_TO_cpu,
+  DIFFTEST_TO_REF
+};
+
 void (*ref_difftest_memcpy)(paddr_t addr, void *buf, size_t n, bool direction) = NULL;
 void (*ref_difftest_regcpy)(void *cpu, bool direction) = NULL;
 void (*ref_difftest_exec)(uint64_t n) = NULL;
@@ -410,11 +436,116 @@ void sdb_mainloop() {
     if (i == NR_CMD) { printf("Unknown command '%s'\n", cmd); }
   }
 }
+/*-----------------------------------------------mmio-----------------------------------------------*/
+#include <sys/time.h>
+#include <time.h>
+// ？#include "common.h"
+static uint32_t *rtc_port_base = NULL;
+static uint8_t *serial_base = NULL;
+static uint8_t *io_space = NULL;
+static uint8_t *p_space = NULL;
+static uint64_t get_time_internal() {
+  struct timeval now;
+  gettimeofday(&now, NULL);
+  uint64_t us = now.tv_sec * 1000000 + now.tv_usec;
+  return us;
+}
+
+uint64_t get_time() {
+  if (boot_time == 0) boot_time = get_time_internal();
+  uint64_t now = get_time_internal();
+  return now - boot_time;
+}
+
+void init_map() {
+  io_space = (uint8_t *)malloc(IO_SPACE_MAX);
+  assert(io_space);
+  p_space = io_space;
+}
+
+// alloc use a memory space
+uint8_t* new_space(int size) {
+  uint8_t *p = p_space;
+  // page aligned;
+  size = (size + (PAGE_SIZE - 1)) & ~PAGE_MASK;
+  printf("p_space : %p,size : %08x\n",p_space);
+  p_space += size;
+  printf("p_space : %p\n",p_space);
+  assert(p_space - io_space < IO_SPACE_MAX);
+  return p;
+}
+
+void add_mmio_map(const char *name, paddr_t addr, void *space, uint32_t len, io_callback_t callback) {
+  assert(nr_map < NR_MAP);
+  paddr_t left = addr, right = addr + len - 1;
+  if (in_pmem(left) || in_pmem(right)) {
+    report_mmio_overlap(name, left, right, "pmem", PMEM_LEFT, PMEM_RIGHT);
+  }
+  for (int i = 0; i < nr_map; i++) {
+    if (left <= maps[i].high && right >= maps[i].low) {
+      report_mmio_overlap(name, left, right, maps[i].name, maps[i].low, maps[i].high);
+    }
+  }
+
+  maps[nr_map] = (IOMap){ .name = name, .low = addr, .high = addr + len - 1,
+    .space = space, .callback = callback };
+  Log("Add mmio map '%s' at [" FMT_PADDR ", " FMT_PADDR "]",
+      maps[nr_map].name, maps[nr_map].low, maps[nr_map].high);
+
+  nr_map ++;
+}
+
+// static void rtc_io_handler() {
+//   uint64_t us = get_time();
+//   rtc_port_base[0] = (uint32_t)us;
+//   rtc_port_base[1] = us >> 32;
+// }
+
+// uint32_t mmio_read(uint32_t addr, uint32_t mask){
+//   if(addr >= CONFIG_RTC_MMIO && addr < CONFIG_RTC_MMIO + 8 ){
+//     rtc_io_handler();
+//     uint32_t offset = addr - CONFIG_RTC_MMIO;
+//     return host_read(rtc_port_base + offset, 1<<mask);
+//   }
+// }
+
+// static void serial_putc(char ch) {
+//   putc(ch,stderr);
+// }
+
+// static void serial_io_handler() {
+//   printf("dafsdf\n");
+//   serial_putc(serial_base[0]);
+// }
+
+uint32_t mmio_write(uint32_t addr, uint32_t mask, uint32_t data){
+  printf("--- waddr : %x, mask : %x,wword : %x\n",addr,mask,data);
+  if(addr >= CONFIG_SERIAL_MMIO && addr < CONFIG_SERIAL_MMIO + 8)
+  {
+    uint32_t offset = addr - CONFIG_SERIAL_MMIO;
+    printf("offset : %08x\n",offset);
+    host_write(serial_base + offset, 1<<mask, data);
+    serial_io_handler();
+  }
+}
+
+void init_serial() {
+  serial_base = new_space(8);
+  printf("serial_base : %x\n",serial_base[0]);
+  add_mmio_map("serial", CONFIG_SERIAL_MMIO, serial_base, 8, serial_io_handler);
+}
+
+// void init_timer() {
+//   rtc_port_base = (uint32_t *)new_space(8);
+//   //add_mmio_map("rtc", CONFIG_RTC_MMIO, rtc_port_base, 8, rtc_io_handler);
+// }
 
 int main(int argc, char *argv[])
 {
   cpu_init();
-
+  init_map();
+  //init_timer();
+  init_serial();
   long img_size = img_init(argc, argv[1]);
 
   // init_difftest(argv[2],img_size,1234);

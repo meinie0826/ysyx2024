@@ -1,5 +1,5 @@
 ARGS ?= -b
-APP ?= crc32
+APP ?= hello-str
 APP_IMG = $(addprefix $(TEST_DIR)/build/, $(addsuffix -riscv32e-npc.bin, $(APP)))
 IMG ?= $(APP_IMG)
 
