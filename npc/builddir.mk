@@ -10,7 +10,7 @@ VFLAGS 				= --trace --cc --exe -O3 --threads-dpi all -I$(VSRC_DIR) -Mdir $(OBJ_
 CINC_PATH 			= -CFLAGS -I$(CSRC_DIR)/include 
 CSRC 				= $(shell find $(CSRC_DIR) -name "*.cpp")
 VSRC 				= $(shell find $(VSRC_DIR) -name "*.v")
-VBIN 				=  $(OBJ_DIR)/$(addprefix V, $(basename $(notdir $(VERILOG_TOP))))
+VBIN 				= $(OBJ_DIR)/$(addprefix V, $(basename $(notdir $(VERILOG_TOP))))
 REWRITE 			= $(abspath ./rewrite.mk)
 
 

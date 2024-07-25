@@ -21,7 +21,7 @@
 #define PAGE_MASK         (PAGE_SIZE - 1)
 #define IO_SPACE_MAX      (2 * 1024 * 1024)
 
-#define CONFIG_RTC_MMIO 0xa0000040
+#define CONFIG_RTC_MMIO 0xa0000048
 
 #define INTER_IMG_SIZE 4
 
@@ -39,7 +39,7 @@ void printf_red(const char *s)
 
 
 uint32_t mmio_read(uint32_t addr, uint32_t mask);
-uint32_t mmio_write(uint32_t addr, uint32_t mask,uint32_t data);
+void mmio_write(uint32_t addr, uint32_t len,uint32_t data);
 static uint64_t boot_time = 0;
 /*----------------------------------------SIM--------------------------------------------------*/
 VerilatedContext *ct = NULL;
@@ -189,31 +189,31 @@ void host_write(void *addr, int len, uint32_t data) {
 
 extern "C" void npc_pmem_read(bool re, uint32_t raddr, uint32_t mask, uint32_t *rword)
 {
-  
+  int len = 1 << mask;
   if (!re) return;
-  
   if(raddr >= CONFIG_MBASE && raddr < CONFIG_MBASE + CONFIG_MSIZE) {
-    //printf("[npc_pmem_read] re : %d, raddr : %08x, mask : %08x\n",re,raddr,mask);
-    *rword = host_read(guest_to_host(raddr), 1 << mask);
+    //printf("[npc_pmem_read] re : %d, raddr : %08x, len : %08x\n",re,raddr,len);
+    *rword = host_read(guest_to_host(raddr), len);
     return;
   }
-  //*rword = mmio_read(raddr,mask);
+  //printf("[npc_pmem_read] raddr : %08x, len : %08x\n",raddr,len);
+  *rword = mmio_read(raddr,len);
 }
 
 // write physical memory with write enable we, write addr waddr, write size (1 << mask), write data wword
 extern "C" void npc_pmem_write(bool we, uint32_t waddr, uint32_t mask, uint32_t wword)
 {
-  
+  int len = 1 << mask;
   if (!we) return;
-  printf("[npc_pmem_write] re : %d, raddr : %08x, mask : %08x， data : %08x\n",we,waddr,mask,wword);
+  //printf("[npc_pmem_write] re : %d, raddr : %08x, len : %d， data : %08x\n",we,waddr,len,wword);
   if(waddr >= CONFIG_MBASE && waddr < CONFIG_MBASE + CONFIG_MSIZE) {
    
-    host_write(guest_to_host(waddr), 1 << mask, wword);
+    host_write(guest_to_host(waddr), len, wword);
     return;
   }
 
-  printf("waddr : %x, mask : %x,wword : %x\n",waddr,mask,wword);
-  mmio_write(waddr,mask,wword);
+  //printf("waddr : %x, mask : %x,wword : %x\n",waddr,len,wword);
+  mmio_write(waddr,len,wword);
 }
 /*----------------------------------------difftest-------------------------------------------------*/
 
@@ -468,83 +468,61 @@ uint8_t* new_space(int size) {
   uint8_t *p = p_space;
   // page aligned;
   size = (size + (PAGE_SIZE - 1)) & ~PAGE_MASK;
-  printf("p_space : %p,size : %08x\n",p_space);
+  //printf("p_space : %p,size : %08x\n",p_space);
   p_space += size;
-  printf("p_space : %p\n",p_space);
+  //printf("p_space : %p\n",p_space);
   assert(p_space - io_space < IO_SPACE_MAX);
   return p;
 }
 
-void add_mmio_map(const char *name, paddr_t addr, void *space, uint32_t len, io_callback_t callback) {
-  assert(nr_map < NR_MAP);
-  paddr_t left = addr, right = addr + len - 1;
-  if (in_pmem(left) || in_pmem(right)) {
-    report_mmio_overlap(name, left, right, "pmem", PMEM_LEFT, PMEM_RIGHT);
-  }
-  for (int i = 0; i < nr_map; i++) {
-    if (left <= maps[i].high && right >= maps[i].low) {
-      report_mmio_overlap(name, left, right, maps[i].name, maps[i].low, maps[i].high);
-    }
-  }
-
-  maps[nr_map] = (IOMap){ .name = name, .low = addr, .high = addr + len - 1,
-    .space = space, .callback = callback };
-  Log("Add mmio map '%s' at [" FMT_PADDR ", " FMT_PADDR "]",
-      maps[nr_map].name, maps[nr_map].low, maps[nr_map].high);
-
-  nr_map ++;
+static void rtc_io_handler() {
+  uint64_t us = get_time();
+  rtc_port_base[0] = (uint32_t)us;
+  rtc_port_base[1] = us >> 32;
+   //printf("[rtc_io_handler] rtc_port_base[0] : %08x, rtc_port_base[1] : %08x\n",rtc_port_base[0],rtc_port_base[1]);
 }
 
-// static void rtc_io_handler() {
-//   uint64_t us = get_time();
-//   rtc_port_base[0] = (uint32_t)us;
-//   rtc_port_base[1] = us >> 32;
-// }
+uint32_t mmio_read(uint32_t addr, uint32_t len){
+  if(addr >= CONFIG_RTC_MMIO && addr < CONFIG_RTC_MMIO + 8 ){
+    rtc_io_handler();
+    uint32_t offset = addr - CONFIG_RTC_MMIO;
+    //printf("[mmio_read] addr : %08x, len : %d, data : %08x\n",addr,len,host_read(rtc_port_base + offset, len));
+    return host_read(rtc_port_base + offset, len);
+  }
+}
 
-// uint32_t mmio_read(uint32_t addr, uint32_t mask){
-//   if(addr >= CONFIG_RTC_MMIO && addr < CONFIG_RTC_MMIO + 8 ){
-//     rtc_io_handler();
-//     uint32_t offset = addr - CONFIG_RTC_MMIO;
-//     return host_read(rtc_port_base + offset, 1<<mask);
-//   }
-// }
+static void serial_putc(char ch) {
+  putc(ch,stderr);
+}
 
-// static void serial_putc(char ch) {
-//   putc(ch,stderr);
-// }
+static void serial_io_handler() {
+  serial_putc(serial_base[0]);
+}
 
-// static void serial_io_handler() {
-//   printf("dafsdf\n");
-//   serial_putc(serial_base[0]);
-// }
-
-uint32_t mmio_write(uint32_t addr, uint32_t mask, uint32_t data){
-  printf("--- waddr : %x, mask : %x,wword : %x\n",addr,mask,data);
+void mmio_write(uint32_t addr, uint32_t len, uint32_t data){
+  //printf("--- waddr : %x, len : %x,wword : %x\n",addr,len,data);
   if(addr >= CONFIG_SERIAL_MMIO && addr < CONFIG_SERIAL_MMIO + 8)
   {
     uint32_t offset = addr - CONFIG_SERIAL_MMIO;
-    printf("offset : %08x\n",offset);
-    host_write(serial_base + offset, 1<<mask, data);
+    //printf("offset : %08x\n",offset);
+    host_write(serial_base + offset, len, data);
     serial_io_handler();
   }
 }
 
 void init_serial() {
   serial_base = new_space(8);
-  printf("serial_base : %x\n",serial_base[0]);
-  add_mmio_map("serial", CONFIG_SERIAL_MMIO, serial_base, 8, serial_io_handler);
 }
 
-// void init_timer() {
-//   rtc_port_base = (uint32_t *)new_space(8);
-//   //add_mmio_map("rtc", CONFIG_RTC_MMIO, rtc_port_base, 8, rtc_io_handler);
-// }
+void init_timer() {
+  rtc_port_base = (uint32_t *)new_space(8);
+}
 
 int main(int argc, char *argv[])
 {
   cpu_init();
   init_map();
-  //init_timer();
+  init_timer();
   init_serial();
   long img_size = img_init(argc, argv[1]);
 

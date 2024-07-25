@@ -14,7 +14,12 @@ $(NEMUISO):
 
 run: $(VBIN) $(NEMUISO) $(IMG) 
 	@echo "$(COLOR_YELLOW)[Run IMG]$(COLOR_NONE)" $(notdir $(IMG))
-	@$(VBIN) $(IMG) $(NEMUISO) $(ARGS)
+#@$(VBIN) $(IMG) $(NEMUISO) $(ARGS)
+	@if $(VBIN) $(IMG) $(NEMUISO) $(ARGS); then \
+		printf "[$(APP)] $(COLOR_GREEN)PASS$(COLOR_NONE)\n" $* ; \
+	else \
+		printf "[$(APP)] $(COLOR_RED)***FAIL***$(COLOR_NONE)\n" ; \
+	fi
 	@rm -rf $(OBJ_DIR)
 	@rm -rf *.vcd
 
