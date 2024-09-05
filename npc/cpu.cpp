@@ -57,6 +57,25 @@ uint32_t *cpu_gpr = NULL;
 void set_state() {
   npc_cpu.pc = cpu->pc_cur;
   memcpy(&npc_cpu.gpr[0], cpu_gpr, 4 * 32);
+// int i;
+// for(i=0;i<6;i=i+1)
+// printf("reg[%02x]:%08x ",i,npc_cpu.gpr[i]);
+// printf("\n");
+// for(i=6;i<12;i=i+1)
+// printf("reg[%02x]:%08x ",i,npc_cpu.gpr[i]);
+// printf("\n");
+// for(i=12;i<18;i=i+1)
+// printf("reg[%02x]:%08x ",i,npc_cpu.gpr[i]);
+// printf("\n");
+// for(i=18;i<24;i=i+1)
+// printf("reg[%02x]:%08x ",i,npc_cpu.gpr[i]);
+// printf("\n");
+// for(i=24;i<30;i=i+1)
+// printf("reg[%02x]:%08x ",i,npc_cpu.gpr[i]);
+// printf("\n");
+// for(i=30;i<32;i=i+1)
+// printf("reg[%02x]:%08x ",i,npc_cpu.gpr[i]);
+// printf("\n");
 }
 
 void single_cycle() {
@@ -192,8 +211,9 @@ extern "C" void npc_pmem_read(bool re, uint32_t raddr, uint32_t mask, uint32_t *
   int len = 1 << mask;
   if (!re) return;
   if(raddr >= CONFIG_MBASE && raddr < CONFIG_MBASE + CONFIG_MSIZE) {
-    //printf("[npc_pmem_read] re : %d, raddr : %08x, len : %08x\n",re,raddr,len);
+    //
     *rword = host_read(guest_to_host(raddr), len);
+    //printf("[npc_pmem_read] raddr : %08x, len : %08x,data : %08x\n",raddr,len,*rword);
     return;
   }
   //printf("[npc_pmem_read] raddr : %08x, len : %08x\n",raddr,len);
@@ -204,11 +224,13 @@ extern "C" void npc_pmem_read(bool re, uint32_t raddr, uint32_t mask, uint32_t *
 extern "C" void npc_pmem_write(bool we, uint32_t waddr, uint32_t mask, uint32_t wword)
 {
   int len = 1 << mask;
+  
   if (!we) return;
-  //printf("[npc_pmem_write] re : %d, raddr : %08x, len : %d， data : %08x\n",we,waddr,len,wword);
+  //printf("？[npc_pmem_write] raddr : %08x, len : %d, data : %08x\n",waddr,len,wword);
   if(waddr >= CONFIG_MBASE && waddr < CONFIG_MBASE + CONFIG_MSIZE) {
-   
+  // printf("[npc_pmem_write] raddr : %08x, len : %d, data : %08x\n",waddr,len,wword);
     host_write(guest_to_host(waddr), len, wword);
+    
     return;
   }
 
@@ -324,6 +346,7 @@ void cpu_exec(unsigned int n){
 
   while (n--) {
     // execute single instruction
+    //printf("------------------------begin----------------------------------\n");
     if(test_break()) {
       // set the end state
       npc_state.halt_pc = cpu->pc_cur;
@@ -331,15 +354,18 @@ void cpu_exec(unsigned int n){
       npc_state.state = NPC_END;
       break;
     }
+    
     single_cycle();
-    // char ass[32];
-    // printf("pc : %08x, inst : %08x ",cpu->pc_cur,cpu->inst);
-    // disassemble(ass,32,cpu->pc_cur,(uint8_t*)&cpu->inst,4);
-    // printf("ass : %s \n",ass);
+    //char ass[32];
+    //printf("pc : %08x, inst : %08x \n",cpu->pc_cur,cpu->inst);
+    //if(cpu->pc_cur == 0 && cpu->inst == 0 ) break;
+    //disassemble(ass,32,cpu->pc_cur,(uint8_t*)&cpu->inst,4);
+    //printf("ass : %s \n",ass);
 
     if(npc_state.state != NPC_RUNNING) break;
+    
   }
-
+  
   switch (npc_state.state) {
     case NPC_RUNNING: npc_state.state = NPC_STOP; break;
     case NPC_END: case NPC_ABORT:
@@ -489,6 +515,7 @@ uint32_t mmio_read(uint32_t addr, uint32_t len){
     //printf("[mmio_read] addr : %08x, len : %d, data : %08x\n",addr,len,host_read(rtc_port_base + offset, len));
     return host_read(rtc_port_base + offset, len);
   }
+  return 0;
 }
 
 static void serial_putc(char ch) {

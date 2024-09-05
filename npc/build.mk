@@ -26,6 +26,8 @@ run: $(VBIN) $(NEMUISO) $(IMG)
 gdb: $(VBIN) $(NEMUISO) $(IMG)
 	@echo "$(COLOR_YELLOW)[GDB IMG]$(COLOR_NONE)" $(notdir $(IMG))
 	@gdb -s $(VBIN) --args $(VBIN) $(IMG) $(NEMUISO) $(ARGS)
+	@rm -rf $(OBJ_DIR)
+	@rm -rf *.vcd
 
 app: $(VBIN) $(APP_IMG) $(NEMUISO)
 	@$(VBIN) $(APP_IMG) $(NEMUISO) $(ARGS)
